@@ -1,6 +1,6 @@
 from flask import Flask, render_template, session, redirect, url_for, escape, request
 from flask_sqlalchemy import SQLAlchemy
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, emit
 import os
 
 '''
@@ -126,8 +126,7 @@ def logout():
 def answer():
     if 'username' not in session:
         return redirect(url_for('login'))
-
-    return render_template('answer.html')
+    return render_template('display.html')
 
 
 @app.route('/problems')
@@ -146,6 +145,33 @@ def users():
     return redirect(url_for('login'))
 
 
+@app.route('/display')
+def display():
+    return render_template('display.html')
+
+
+@app.route('/as')
+def adf():
+    socketio.emit('new problem',{'data': 'new problem'}, namespace='/test', broadcast=True)
+    return 'Sent'
+
+@socketio.on('my event', namespace='/test')
+def test_message(message):
+    emit('my response', {'data': message['data']})
+
+@socketio.on('answer', namespace='/test')
+def test_message(message):
+    emit('answered', {'username': message['username'], 'answer': message['answer']}, namespace='/test', broadcast=True)
+
+@socketio.on('connect', namespace='/test')
+def test_connect():
+    emit('my response', {'data': 'Connected'})
+
+@socketio.on('disconnect', namespace='/test')
+def test_disconnect():
+    print('Client disconnected')
+    emit('my response', {'data': 'Disconnected'})
+
 if __name__ == '__main__':
-    # socketio.run(app)
-    app.run(debug=True)
+    socketio.run(app, debug=True)
+    #app.run(debug=True)
