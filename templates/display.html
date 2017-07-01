@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>观看</title>
+</head>
+<body>
+<div id="logo">
+    <h1>logo</h1>
+</div>
+<div id="problem" style="display: none">
+
+</div>
+<script src="/static/js/jquery-3.2.1.js"></script>
+<script src="/static/js/socket.io.min.js"></script>
+<script>
+    $(document).ready(function(){
+    var socket = io.connect('http://' + document.domain + ':' + location.port + '/test');
+    socket.on('my response', function(msg) {
+        //$('#log').append('<p>Received: ' + msg.data + '</p>');
+        console.log('Received'+msg.data);
+    });
+    socket.on('new problem', function (msg) {
+        $('#logo').hide();
+        var ele = $('#problem');
+        ele.empty();
+        ele.append('<p><h3>题目描述</h3></p>');
+        ele.append('<p><option>A</option></p>');
+        ele.append('<p><option>B</option></p>');
+        ele.append('<p><option>C</option></p>');
+        ele.append('<p><option>D</option></p>');
+        {% if not isGuest %}
+            ele.append('<input type="button" value="提交" />');
+        {% endif %}
+        ele.fadeIn();
+    });
+    socket.on('answered', function (msg) {
+
+    });
+    {% if isGuest %}
+        $('#answer').submit(function(event) {
+            socket.emit('answer', {answer: $('#answer_blank').val(), username: 'ToDo'});
+        });
+    {% endif %}
+});
+</script>
+</body>
+</html>
