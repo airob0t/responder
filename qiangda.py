@@ -1,6 +1,6 @@
 #coding:utf-8
 from flask import Flask, render_template, session, redirect, url_for, escape, request
-from flask_admin import Admin
+from flask_admin import Admin, BaseView, expose
 from flask_admin.contrib.sqla import ModelView
 from flask_admin.contrib.fileadmin import FileAdmin
 from flask_admin.form import upload
@@ -26,6 +26,15 @@ babel = Babel(app)
 app.config['BABEL_DEFAULT_LOCALE'] = 'zh_CN'
 admin = Admin(app, name=u'后台管理系统')
 
+
+class Setting(db.Model):
+    __tablename__ = 'setting'
+    id = db.Column(db.Integer, primary_key=True)
+    nowid = db.Column(db.Integer, nullable=False)
+    open = db.Column(db.Boolean, default=False)
+
+    def __repr__(self):
+        return '<Setting %d>' % self.nowid
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -135,12 +144,52 @@ class FileView(FileAdmin):
     can_mkdir = False
     allowed_extensions = ['jpg', 'png']
 
+class AdminView(BaseView):
+    @expose('/')
+    def index(self):
+        problemid = request.args.get('problemid', None)
+        open = request.args.get('open', '-1')
+        pnum = Problems.query.count()
+        if problemid is not None:
+            problemid = int(problemid)
+            if problemid <= 0:
+                return self.render('admin.html', problemid=-1)
+            elif problemid > pnum:
+                return self.render('admin.html', problemid=-2)
+            db.session.query(Setting).filter(Setting.id == 1).update({Setting.nowid: problemid})
+            db.session.commit()
+        pid = Setting.query.filter(Setting.id==1).first().nowid
+        if open == '1':
+            db.session.query(Setting).filter(Setting.id==1).update({Setting.open: True})
+            db.session.commit()
+        elif open == '0':
+            db.session.query(Setting).filter(Setting.id == 1).update({Setting.open: False})
+            db.session.commit()
+        opened = Setting.query.filter(Setting.id==1).first().open
+        if opened:
+            p = Problems.query.filter(Problems.id == pid).first()
+            data = {
+                'pid': p.id,
+                'title': p.title,
+                'type': p.type,
+                'requriepic': p.requirePic,
+                'timer': p.timer,
+                'A': p.A,
+                'B': p.B,
+                'C': p.C,
+                'D': p.D,
+                'choice': p.choiceanswer,
+                'blank': p.blankanswer,
+                'path': p.path
+            }
+            socketio.emit('new problem', data, namespace='/test', broadcast=True)
+        # print pid, pnum
+        return self.render('admin.html', problemid=pid, opened=opened, problemnum=pnum)
 
+
+admin.add_view(AdminView(name=u'抢答控制'))
 admin.add_view(UserView(User, db.session, name=u'用户'))
 admin.add_view(ProblemsView(Problems, db.session, name=u'题目'))
-# admin.add_view(ModelView(Options, db.session))
-# admin.add_view(ModelView(FillBlankAnswer, db.session))
-# admin.add_view(PicView(Picture, db.session))
 admin.add_view(FileView(os.path.join(basedir, 'static/problempic'), '/static/', name=u'图片'))
 
 
@@ -154,13 +203,14 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/myadmin')
+'''
+@app.route('/control')
 def admin():
     if 'usertype' in session:
         if session['usertype'] == 1:
             return render_template('admin.html')
     return redirect(url_for('login'))
-
+'''
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -177,7 +227,7 @@ def login():
                 session['usertype'] = usertype
                 # print usertype
                 if usertype == 1:
-                    return redirect(url_for('admin'))
+                    return redirect(url_for('admin.index'))
                 else:
                     return redirect(url_for('answer'))
         return redirect(url_for('login'))
@@ -218,20 +268,28 @@ def users():
 def display():
     return render_template('display.html')
 
+'''
 @app.route('/as')
 def adf():
     socketio.emit('new problem',{'data': 'new problem'}, namespace='/test', broadcast=True)
     return 'Sent'
+'''
 
-
-@socketio.on('my event', namespace='/test')
-def test_message(message):
-    emit('my response', {'data': message['data']})
 
 @socketio.on('answer', namespace='/test')
 def test_message(message):
-    # if username in session['username']
-    emit('answered', {'username': message['username'], 'answer': message['answer']}, namespace='/test', broadcast=True)
+    if username in session['username']:
+        print message['username'], 'answer'
+        opened = Setting.query.filter(Setting.id==1).first().open
+        if opened:
+            p = Problems.query.filter(Problems.id==message['pid']).first()
+            if p.type == 1:
+                ans = chr(64+p.choiceanswer)
+            else:
+                ans = p.blankanswer
+            emit('answered', {'username': message['username'], 'useranswer': message['answer'], 'rightanswer': ans}, namespace='/test', broadcast=True)
+        else:
+            emit('closed', {'msg': 'Closed'}, namespace='/test')
 
 @socketio.on('connect', namespace='/test')
 def test_connect():
@@ -243,5 +301,7 @@ def test_disconnect():
     emit('my response', {'data': 'Disconnected'})
 
 if __name__ == '__main__':
+    db.session.query(Setting).filter(Setting.id==1).update({Setting.nowid: 1, Setting.open: False})
+    db.session.commit()
     socketio.run(app, debug=True)
     #app.run(debug=True)

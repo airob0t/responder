@@ -1,0 +1,8 @@
+flask
+flask-admin
+flask-babelex
+flask-sqlalchemy
+flask-socketio
+gevent
+gevent-websocket
+flask-login

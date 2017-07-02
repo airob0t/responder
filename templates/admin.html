@@ -1,12 +1,21 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>管理</title>
-</head>
-<body>
-<h1>管理页面</h1>
-
-<script src="/static/js/jquery-3.2.1.js"></script>
-</body>
-</html>
+{% extends 'admin/master.html' %}
+{% block body %}
+    {% if problemid >= 0 %}
+        {% if opened %}
+            <a href="?open=0" class="btn">关闭抢答</a><p></p>
+        {% else %}
+            <a href="?open=1" class="btn">开启抢答</a><p></p>
+        {% endif %}
+        <p class="alert">当前题号：{{ problemid }}</p>
+        {% if problemid < problemnum %}
+            <a href="?problemid={{ problemid + 1 }}" class="btn">下一题</a>
+        {% endif %}
+        {% if problemid != 0 %}
+            <a href="?problemid={{ problemid - 1 }}" class="btn">上一题</a>
+        {% endif %}
+    {% elif problemid == -1 %}
+        <p class="alert">题号错误</p>
+    {% elif problemid == -2 %}
+        <p class="alert">答题结束</p>
+    {% endif %}
+{% endblock %}

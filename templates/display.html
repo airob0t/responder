@@ -9,40 +9,71 @@
     <h1>logo</h1>
 </div>
 <div id="problem" style="display: none">
+</div>
+<div id="bar" style="display: none">
 
 </div>
 <script src="/static/js/jquery-3.2.1.js"></script>
 <script src="/static/js/socket.io.min.js"></script>
 <script>
+    var answerable = -1;
+    var pmsg;
+    var socket
     $(document).ready(function(){
-    var socket = io.connect('http://' + document.domain + ':' + location.port + '/test');
-    socket.on('my response', function(msg) {
-        //$('#log').append('<p>Received: ' + msg.data + '</p>');
-        console.log('Received'+msg.data);
-    });
+    socket = io.connect('http://' + document.domain + ':' + location.port + '/test');
     socket.on('new problem', function (msg) {
+        answerable = 1;
         $('#logo').hide();
+        $('#bar').hide();
+        $('#bar').empty();
         var ele = $('#problem');
         ele.empty();
-        ele.append('<p><h3>题目描述</h3></p>');
-        ele.append('<p><option>A</option></p>');
-        ele.append('<p><option>B</option></p>');
-        ele.append('<p><option>C</option></p>');
-        ele.append('<p><option>D</option></p>');
+        ele.append('<p><h3>'+msg['title']+'</h3></p>');
+        if(msg['type']==1) {
+            ele.append('<p><input type="radio" name="choice" value="A" />A</p>');
+            ele.append('<p><input type="radio" name="choice" value="B" />B</p>');
+            ele.append('<p><input type="radio" name="choice" value="C" />C</p>');
+            ele.append('<p><input type="radio" name="choice" value="D" />D</p>');
+        }
         {% if username %}
-            ele.append('<input type="button" value="提交" />');
+            if(msg['type']==2){
+                ele.append('<label>答案:</label><input type="text" id="answer_blank" />')
+            }
+            ele.append('<button type="button" id="answer">提交</button>');
         {% endif %}
         ele.fadeIn();
+        pmsg = msg;
     });
     socket.on('answered', function (msg) {
+        //stop the timer
+        answerable = 0;
+        $('#bar').append('<p>'+msg['username']+'的答案为'+msg['useranswer']+',正确答案为'+msg['rightanswer']+'</p>');
+        $('#bar').fadeIn();
 
     });
-    {% if username %}
-        $('#answer').submit(function(event) {
-            socket.emit('answer', {answer: $('#answer_blank').val(), username: '{{ username }}'});
-        });
-    {% endif %}
+    socket.on('closed', function (msg) {
+        alert('抢答关闭');
+    });
 });
+    {% if username %}
+    $(document).on('click', 'button', function() {
+        console.log('click');
+        if (answerable != 1)
+        {
+            alert('当前不能回答');
+            return;
+        }
+        var v;
+        if(pmsg['type']==1){
+            v = $('input:radio[name="choice"]:checked').val();
+        }
+        else{
+            v = $('#answer_blank').val();
+        }
+        console.log('emit');
+        socket.emit('answer', {pid: pmsg['pid'], type: pmsg['type'],answer: v, username: '{{ username }}'});
+    });
+    {% endif %}
 </script>
 </body>
 </html>
