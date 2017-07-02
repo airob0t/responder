@@ -139,14 +139,20 @@ class ProblemsView(ModelView):
         'path': upload.ImageUploadField(label=u'图片', base_path=os.path.join(basedir, 'static/images')),
     }
 
+
 class FileView(FileAdmin):
     can_delete_dirs = False
     can_mkdir = False
     allowed_extensions = ['jpg', 'png']
 
+
 class AdminView(BaseView):
     @expose('/')
     def index(self):
+        if 'usertype' not in session:
+            return self.render('login.html')
+        if 1 != session['usertype']:
+            return self.render('login.html')
         problemid = request.args.get('problemid', None)
         open = request.args.get('open', '-1')
         pnum = Problems.query.count()
@@ -278,7 +284,7 @@ def adf():
 
 @socketio.on('answer', namespace='/test')
 def test_message(message):
-    if username in session['username']:
+    if 'username' in session['username']:
         print message['username'], 'answer'
         opened = Setting.query.filter(Setting.id==1).first().open
         if opened:
