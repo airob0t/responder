@@ -1,7 +1,14 @@
+#coding:utf-8
 from flask import Flask, render_template, session, redirect, url_for, escape, request
+from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
+from flask_admin.contrib.fileadmin import FileAdmin
+from flask_admin.form import upload
+from flask_babelex import Babel
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
 import os
+
 
 '''
 Configs
@@ -15,10 +22,9 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 app.config['SECRET_KEY'] = os.urandom(24)
 socketio = SocketIO(app)
 db = SQLAlchemy(app)
-
-'''
-Models
-'''
+babel = Babel(app)
+app.config['BABEL_DEFAULT_LOCALE'] = 'zh_CN'
+admin = Admin(app, name=u'后台管理系统')
 
 
 class User(db.Model):
@@ -35,15 +41,23 @@ class User(db.Model):
 class Problems(db.Model):
     __tablename__ = 'problems'
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.Text, index=True)
-    type = db.Column(db.Integer)
-    requirePic = db.Column(db.Boolean)
-    timer = db.Column(db.Integer)
+    title = db.Column(db.Text, index=True, nullable=False)
+    type = db.Column(db.Integer, nullable=False)
+    requirePic = db.Column(db.Boolean, nullable=False)
+    A = db.Column(db.Text)
+    B = db.Column(db.Text)
+    C = db.Column(db.Text)
+    D = db.Column(db.Text)
+    choiceanswer = db.Column(db.Integer)
+    blankanswer = db.Column(db.Text)
+    path = db.Column(db.Text)
+    # pic = db.Column(db.LargeBinary)
+    timer = db.Column(db.Integer, nullable=False)
 
     def __repr__(self):
         return '<Problem %r>' % self.title
 
-
+'''
 class Options(db.Model):
     __tablename__ = 'options'
     id = db.Column(db.Integer, db.ForeignKey('problems.id'), primary_key=True)
@@ -69,10 +83,65 @@ class FillBlankAnswer(db.Model):
 class Picture(db.Model):
     __tablename__ = 'picture'
     id = db.Column(db.Integer, db.ForeignKey('problems.id'), primary_key=True)
-    path = db.Column(db.String)
+    # path = db.Column(db.String)
+    pic = db.Column(db.Binary)
 
     def __repr__(self):
         return '<Picture ProblemId %r Path %r>' % (self.id, self.path)
+'''
+
+
+class UserView(ModelView):
+    form_choices = {
+        'usertype': [
+            ('1', u'管理员'),
+            ('2', u'普通用户'),
+        ],
+    }
+    column_labels = dict(
+        username=u'用户名',
+        password=u'密码',
+        usertype=u'用户角色',
+    )
+
+class ProblemsView(ModelView):
+    form_choices = {
+        'type': [
+            ('1', u'选择题'),
+            ('2', u'填空题'),
+        ],
+        'choiceanswer':[
+            ('1', 'A'),
+            ('2', 'B'),
+            ('3', 'C'),
+            ('4', 'D'),
+        ],
+    }
+    column_labels = dict(
+        title=u'题面',
+        type=u'题目类型',
+        requriepic=u'是否有图片',
+        choiceanswer=u'选择答案',
+        blankanswer=u'填空答案',
+        path=u'图片',
+        timer=u'倒计时秒',
+    )
+    form_extra_fields = {
+        'path': upload.ImageUploadField(label=u'图片', base_path=os.path.join(basedir, 'static/images')),
+    }
+
+class FileView(FileAdmin):
+    can_delete_dirs = False
+    can_mkdir = False
+    allowed_extensions = ['jpg', 'png']
+
+
+admin.add_view(UserView(User, db.session, name=u'用户'))
+admin.add_view(ProblemsView(Problems, db.session, name=u'题目'))
+# admin.add_view(ModelView(Options, db.session))
+# admin.add_view(ModelView(FillBlankAnswer, db.session))
+# admin.add_view(PicView(Picture, db.session))
+admin.add_view(FileView(os.path.join(basedir, 'static/problempic'), '/static/', name=u'图片'))
 
 
 '''
@@ -85,7 +154,7 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/admin')
+@app.route('/myadmin')
 def admin():
     if 'usertype' in session:
         if session['usertype'] == 1:
@@ -126,9 +195,9 @@ def logout():
 def answer():
     if 'username' not in session:
         return redirect(url_for('login'))
-    return render_template('display.html')
+    return render_template('display.html', username=escape(session['username']))
 
-
+'''
 @app.route('/problems')
 def problems():
     if 'usertype' in session:
@@ -143,17 +212,17 @@ def users():
         if session['usertype'] == '1':
             return render_template('users.html')
     return redirect(url_for('login'))
-
+'''
 
 @app.route('/display')
 def display():
     return render_template('display.html')
 
-
 @app.route('/as')
 def adf():
     socketio.emit('new problem',{'data': 'new problem'}, namespace='/test', broadcast=True)
     return 'Sent'
+
 
 @socketio.on('my event', namespace='/test')
 def test_message(message):
@@ -161,6 +230,7 @@ def test_message(message):
 
 @socketio.on('answer', namespace='/test')
 def test_message(message):
+    # if username in session['username']
     emit('answered', {'username': message['username'], 'answer': message['answer']}, namespace='/test', broadcast=True)
 
 @socketio.on('connect', namespace='/test')

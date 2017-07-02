@@ -29,7 +29,7 @@
         ele.append('<p><option>B</option></p>');
         ele.append('<p><option>C</option></p>');
         ele.append('<p><option>D</option></p>');
-        {% if not isGuest %}
+        {% if username %}
             ele.append('<input type="button" value="提交" />');
         {% endif %}
         ele.fadeIn();
@@ -37,9 +37,9 @@
     socket.on('answered', function (msg) {
 
     });
-    {% if isGuest %}
+    {% if username %}
         $('#answer').submit(function(event) {
-            socket.emit('answer', {answer: $('#answer_blank').val(), username: 'ToDo'});
+            socket.emit('answer', {answer: $('#answer_blank').val(), username: '{{ username }}'});
         });
     {% endif %}
 });
